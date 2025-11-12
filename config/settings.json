@@ -1,0 +1,22 @@
+{
+  "ModelName": "qwen2.5:72b",
+  "AlternativeModels": [
+    "llama3.1:70b",
+    "mixtral:8x7b"
+  ],
+  "OllamaPort": "11434",
+  "ProxyPort": "8082",
+  "ProxyEnabled": true,
+  "DocumentsPath": "%USERPROFILE%\\Documents\\LLM_Knowledge",
+  "VectorDBPath": "%USERPROFILE%\\.llm_vectordb",
+  "LogPath": "%USERPROFILE%\\LLM_Setup_Logs",
+  "MaxMemoryGB": 28,
+  "EmbeddingModel": "sentence-transformers/all-MiniLM-L6-v2",
+  "ChunkSize": 500,
+  "ChunkOverlap": 50,
+  "OfflineMode": true,
+  "DisableTelemetry": true,
+  "NetworkIsolation": true,
+  "RancherDesktopVersion": "latest",
+  "ClaudeCodePackage": "claude-code"
+}

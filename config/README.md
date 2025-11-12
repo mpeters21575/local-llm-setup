@@ -10,11 +10,69 @@ Production-ready PowerShell automation for setting up a local Large Language Mod
 
 - **🤖 Claude Sonnet 4.5-equivalent LLM** - Uses Qwen2.5 72B or Llama 3.1 70B
 - **🔒 100% Offline Operation** - No internet connectivity required or allowed
-- **📚 Document Learning (RAG)** - Ingest your own documents for context-aware responses
+- **📚 Document Learning (RAG)** - Ingest your own documents with local embeddings (ChromaDB + sentence-transformers)
 - **💬 Chat Summarization** - Automated conversation analysis and topic extraction
 - **🐳 Containerized** - Runs in Rancher Desktop with Ollama
 - **🛡️ Secure** - Firewall-enforced offline mode with no telemetry
 - **⚡ Production-Ready** - Comprehensive error handling, logging, and verification
+- **🔌 Proxy Layer** - Translates Claude Code → Ollama seamlessly
+
+## 🏗️ Architecture (How Offline Mode Works)
+
+This setup uses a **proxy layer** to enable Claude Code to work with local Ollama:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                         YOU                                       │
+└──────────────────────────────────────────────────────────────────┘
+                            ↓
+┌──────────────────────────────────────────────────────────────────┐
+│                     CLAUDE CODE CLI                               │
+│  Environment: ANTHROPIC_BASE_URL=http://127.0.0.1:8082          │
+└──────────────────────────────────────────────────────────────────┘
+                            ↓
+                  Anthropic API Format
+                  POST /v1/messages
+                            ↓
+┌──────────────────────────────────────────────────────────────────┐
+│              PROXY (claude-code-ollama-proxy)                    │
+│  • Translates: Anthropic API → OpenAI API                        │
+│  • Maps: claude-sonnet → qwen2.5:72b                            │
+│  • Port: 8082 (localhost only)                                   │
+└──────────────────────────────────────────────────────────────────┘
+                            ↓
+                   OpenAI API Format
+                   POST /v1/chat/completions
+                            ↓
+┌──────────────────────────────────────────────────────────────────┐
+│                    OLLAMA (Container)                            │
+│  • Model: Qwen2.5 72B / Llama 3.1 70B                           │
+│  • Port: 11434 (localhost only)                                  │
+│  • Running in: Rancher Desktop                                   │
+└──────────────────────────────────────────────────────────────────┘
+                            ↓
+┌──────────────────────────────────────────────────────────────────┐
+│                    LLM MODEL INFERENCE                            │
+│  • 40GB+ model loaded in memory                                  │
+│  • 100% local processing                                         │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### RAG System (Document Learning)
+
+```
+Documents → Python Script → Local Embeddings (sentence-transformers)
+    ↓
+ChromaDB Vector Database (Local)
+    ↓
+Retrieved Context → Injected into LLM Prompts
+```
+
+**Key Points:**
+- ✅ **No External API Calls**: All embeddings generated locally
+- ✅ **Proxy Auto-Starts**: Windows scheduled task ensures it's always running
+- ✅ **Firewall Protected**: Internet access blocked for all components
+- ✅ **Transparent**: Claude Code works normally, unaware it's using local LLM
 
 ## 📋 Prerequisites
 
@@ -213,8 +271,17 @@ Start-Process "$env:LOCALAPPDATA\Programs\Rancher Desktop\Rancher Desktop.exe"
 
 **Issue**: Claude Code can't connect
 ```powershell
-# Solution: Verify Ollama is accessible
+# Solution 1: Verify proxy is running
+Start-ScheduledTask -TaskName "ClaudeOllamaProxy"
+Invoke-WebRequest -Uri "http://127.0.0.1:8082/health"
+
+# Solution 2: Check environment variable
+$env:ANTHROPIC_BASE_URL  # Should be: http://127.0.0.1:8082
+
+# Solution 3: Verify Ollama is accessible
 Invoke-RestMethod -Uri "http://localhost:11434/api/tags"
+
+# Solution 4: Check proxy logs in Task Scheduler
 ```
 
 **Issue**: Out of memory errors
@@ -279,6 +346,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Rancher Desktop](https://rancherdesktop.io/) - For container management
 - [Qwen Team](https://github.com/QwenLM/Qwen) - For the Qwen models
 - [Meta AI](https://ai.meta.com/) - For Llama models
+- [mattlqx/claude-code-ollama-proxy](https://github.com/mattlqx/claude-code-ollama-proxy) - For the proxy layer
+- [ChromaDB](https://www.trychroma.com/) - For local vector database
+- [sentence-transformers](https://www.sbert.net/) - For local embeddings
 
 ## 📞 Support
 
@@ -288,9 +358,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🗺️ Roadmap
 
+- [x] **RAG with local embeddings** - ✅ Implemented with ChromaDB + sentence-transformers
+- [x] **Proxy layer for offline operation** - ✅ Implemented with claude-code-ollama-proxy
+- [x] **Network isolation** - ✅ Firewall rules enforce offline mode
 - [ ] Support for additional models (Mistral, Phi-3, etc.)
 - [ ] GUI installation wizard
-- [ ] Advanced RAG with vector similarity search
+- [ ] Advanced RAG features (re-ranking, hybrid search)
 - [ ] Multi-modal support (images, audio)
 - [ ] Docker Compose alternative to Rancher
 - [ ] Linux and macOS support
@@ -299,13 +372,19 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📈 Changelog
 
-### v1.0.0 (2024-11-12)
-- Initial release
-- Qwen2.5 72B and Llama 3.1 70B support
-- Basic RAG implementation
-- Chat summarization agent
-- Offline-first architecture
-- Comprehensive documentation
+### v1.0.0 (2025-01-12)
+- **Initial Release - Full Offline Operation**
+- ✅ Qwen2.5 72B and Llama 3.1 70B support
+- ✅ Claude Code integration via proxy layer (claude-code-ollama-proxy)
+- ✅ RAG system with local embeddings (ChromaDB + sentence-transformers)
+- ✅ Chat summarization agent
+- ✅ Document ingestion agent
+- ✅ Network isolation with firewall rules
+- ✅ Automated proxy startup (Windows scheduled task)
+- ✅ Environment variable configuration (ANTHROPIC_BASE_URL)
+- ✅ Comprehensive logging and error handling
+- ✅ Offline mode verification tests
+- ✅ 100% offline architecture - NO external API calls
 
 ---
 

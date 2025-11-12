@@ -55,13 +55,25 @@ function Main {
         Start-Sleep -Seconds 10
         Install-OllamaInRancher -Config $config
         Install-LLMModel -Config $config
+
+        # CRITICAL: Install proxy BEFORE Claude Code
+        # This proxy translates Anthropic API → Ollama OpenAI format
+        Write-Log "`n=== INSTALLING PROXY (CRITICAL FOR OFFLINE) ===" -Level INFO
+        Install-ClaudeOllamaProxy -Config $config
+
         Install-ClaudeCode
-        
+
         # Phase 3: Configuration
         Write-Log "`n=== PHASE 3: SYSTEM CONFIGURATION ===" -Level INFO
+        # This will set ANTHROPIC_BASE_URL to point to the proxy
         Set-ClaudeCodeConfiguration -Config $config
-        Set-OfflineFirewallRules -Config $config
         Set-EnvironmentVariables -Config $config
+
+        # Set firewall rules AFTER all software is installed
+        if ($config.NetworkIsolation) {
+            Write-Log "`n=== ENFORCING NETWORK ISOLATION ===" -Level INFO
+            Set-OfflineFirewallRules -Config $config
+        }
         
         # Phase 4: RAG System Setup
         Write-Log "`n=== PHASE 4: RAG SYSTEM SETUP ===" -Level INFO
@@ -72,12 +84,20 @@ function Main {
         # Phase 5: Verification
         Write-Log "`n=== PHASE 5: INSTALLATION VERIFICATION ===" -Level INFO
         $testsPass = Test-Installation -Config $config
-        
-        if ($testsPass) {
+
+        # Test offline mode
+        Write-Log "`n=== TESTING OFFLINE MODE ===" -Level INFO
+        $offlineTestPass = Test-OfflineMode -Config $config
+
+        if ($testsPass -and $offlineTestPass) {
             Show-UsageGuide -Config $config
             Write-Log "`nInstallation completed successfully!" -Level SUCCESS
-        } else {
+            Write-Log "System is configured for 100% offline operation" -Level SUCCESS
+        } elseif ($testsPass) {
             Write-Log "`nInstallation completed with warnings. Review test results." -Level WARNING
+            Show-UsageGuide -Config $config
+        } else {
+            Write-Log "`nInstallation completed with errors. Review logs." -Level ERROR
         }
         
     } catch {
@@ -93,8 +113,14 @@ function Show-Banner {
 ╔════════════════════════════════════════════════════════════════════════╗
 ║                                                                        ║
 ║     LOCAL LLM SETUP WITH CLAUDE CODE INTEGRATION                      ║
-║     Production-Ready Offline Environment                              ║
+║     100% Offline Operation - No Internet Required                     ║
 ║     Version 1.0.0                                                      ║
+║                                                                        ║
+║     Features:                                                          ║
+║     ✓ Claude Code via Local LLM (Qwen/Llama)                          ║
+║     ✓ RAG with Local Embeddings                                       ║
+║     ✓ Network Isolation (Firewall Enforced)                           ║
+║     ✓ No Telemetry, No External API Calls                             ║
 ║                                                                        ║
 ╚════════════════════════════════════════════════════════════════════════╝
 
