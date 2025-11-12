@@ -1,0 +1,105 @@
+<#
+.SYNOPSIS
+    Main orchestrator for Local LLM setup with Claude Code
+.DESCRIPTION
+    Coordinates all installation and configuration modules
+.NOTES
+    Author: AI Assistant
+    Version: 1.0.0
+    Requires: Windows 11, 32GB RAM, PowerShell 5.1+, Admin privileges
+#>
+
+#Requires -RunAsAdministrator
+
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $false)]
+    [string]$ConfigFile = ".\config\settings.json"
+)
+
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+
+# Get script directory
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# Import modules
+$modulePath = Join-Path $ScriptRoot "modules"
+Import-Module (Join-Path $modulePath "Utilities.psm1") -Force
+Import-Module (Join-Path $modulePath "SystemChecks.psm1") -Force
+Import-Module (Join-Path $modulePath "Installation.psm1") -Force
+Import-Module (Join-Path $modulePath "Configuration.psm1") -Force
+Import-Module (Join-Path $modulePath "RAGSystem.psm1") -Force
+
+function Main {
+    try {
+        Show-Banner
+        
+        # Load configuration
+        $config = Get-Configuration -ConfigFile $ConfigFile
+        Initialize-Logging -LogPath $config.LogPath
+        
+        Write-Log "Starting installation process..." -Level INFO
+        Write-Log "This will take approximately 45-90 minutes" -Level WARNING
+        Write-Log "Model: $($config.ModelName)" -Level INFO
+        
+        # Phase 1: System Checks
+        Write-Log "`n=== PHASE 1: SYSTEM VALIDATION ===" -Level INFO
+        Test-Administrator
+        Test-SystemRequirements
+        
+        # Phase 2: Software Installation
+        Write-Log "`n=== PHASE 2: SOFTWARE INSTALLATION ===" -Level INFO
+        Install-Chocolatey
+        Install-RancherDesktop -Config $config
+        Start-Sleep -Seconds 10
+        Install-OllamaInRancher -Config $config
+        Install-LLMModel -Config $config
+        Install-ClaudeCode
+        
+        # Phase 3: Configuration
+        Write-Log "`n=== PHASE 3: SYSTEM CONFIGURATION ===" -Level INFO
+        Set-ClaudeCodeConfiguration -Config $config
+        Set-OfflineFirewallRules -Config $config
+        Set-EnvironmentVariables -Config $config
+        
+        # Phase 4: RAG System Setup
+        Write-Log "`n=== PHASE 4: RAG SYSTEM SETUP ===" -Level INFO
+        Initialize-RAGSystem -Config $config
+        New-DocumentIngestionScript -Config $config -ScriptRoot $ScriptRoot
+        New-ChatSummarizationScript -Config $config -ScriptRoot $ScriptRoot
+        
+        # Phase 5: Verification
+        Write-Log "`n=== PHASE 5: INSTALLATION VERIFICATION ===" -Level INFO
+        $testsPass = Test-Installation -Config $config
+        
+        if ($testsPass) {
+            Show-UsageGuide -Config $config
+            Write-Log "`nInstallation completed successfully!" -Level SUCCESS
+        } else {
+            Write-Log "`nInstallation completed with warnings. Review test results." -Level WARNING
+        }
+        
+    } catch {
+        Write-Log "Installation failed: $_" -Level ERROR
+        Write-Log "Stack Trace: $($_.ScriptStackTrace)" -Level ERROR
+        throw
+    }
+}
+
+function Show-Banner {
+    Write-Host @"
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                                                                        ║
+║     LOCAL LLM SETUP WITH CLAUDE CODE INTEGRATION                      ║
+║     Production-Ready Offline Environment                              ║
+║     Version 1.0.0                                                      ║
+║                                                                        ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+"@ -ForegroundColor Cyan
+}
+
+# Execute
+Main
